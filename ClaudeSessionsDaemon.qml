@@ -64,8 +64,17 @@ PluginComponent {
 
     // ── Parsing / state transitions ──────────────────────────
     function cleanTitle(raw) {
-        // strip the leading status glyph (and any other leading symbols)
-        const stripped = String(raw || "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
+        // Claude Code prefixes the pane title with a status glyph
+        // (◑ while a turn is running, ✳ when idle). Strip that, plus any
+        // variation selector / joiner and surrounding blanks.
+        //
+        // NOTE: do not use \p{L}/\p{N} here. Qt's JS engine does not
+        // implement unicode property escapes — the regex compiles but
+        // silently matches nothing, which is exactly how the glyph used
+        // to leak into the notification title.
+        const stripped = String(raw || "")
+            .replace(/^[◐◑◒◓●○◎◍✳✲✱\uFE0F\u200D\s]+/u, "")
+            .trim();
         return stripped || "Claude 会话";
     }
 
@@ -134,6 +143,7 @@ PluginComponent {
 
             command: [
                 "notify-send",
+                "-p", // print the notification id on stdout (first line)
                 "-a", "Claude Code",
                 "-i", root.iconPath,
                 "-u", "normal",
@@ -143,17 +153,49 @@ PluginComponent {
                 "这一轮已完成"
             ]
 
+            // stdout is "137\n" if the notification just went away, or
+            // "137\ndefault\n" if the user clicked the action.
             stdout: StdioCollector {
                 onStreamFinished: {
-                    const action = text.trim();
-                    root.log("action=[" + action + "] pane=" + notifyProc.paneId);
-                    if (action === "default" || action === "0")
+                    const lines = text.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+                    const id = /^\d+$/.test(lines[0] || "") ? lines[0] : "";
+                    const action = id && lines.length > 1 ? lines[lines.length - 1] : "";
+                    root.log("action=[" + action + "] id=" + id + " pane=" + notifyProc.paneId);
+                    if (action === "default" || action === "0") {
+                        // Belt and braces. Quickshell dismisses a
+                        // non-resident notification when its action is
+                        // invoked, so DMS normally drops this entry by
+                        // itself. Closing it explicitly guarantees the
+                        // entry cannot linger in the center's waiting list.
+                        root.closeNotification(id);
                         root.focusPane(notifyProc.paneId);
+                    }
                 }
             }
 
             onExited: destroy()
         }
+    }
+
+    // ── Tell the notification server we are done with it ─────
+    function closeNotification(id) {
+        if (!id)
+            return;
+        closeProc.notifId = String(id);
+        closeProc.running = true;
+    }
+
+    Process {
+        id: closeProc
+        property string notifId: ""
+
+        command: ["gdbus", "call", "--session",
+            "--dest", "org.freedesktop.Notifications",
+            "--object-path", "/org/freedesktop/Notifications",
+            "--method", "org.freedesktop.Notifications.CloseNotification",
+            notifId]
+
+        onExited: exitCode => root.log("close id=" + notifId + " exit=" + exitCode)
     }
 
     // ── Focus the pane that sent the notification ────────────

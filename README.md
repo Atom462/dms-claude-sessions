@@ -25,6 +25,8 @@ Claude Code 自己会把状态写进终端标题：
 2. `kitten @ focus-window --match id:<pane>`：切 kitty 内部的焦点。它同时会请求合成器抬起窗口，但 niri 把它当「抢焦点」处理 —— 用户最后一次输入落在别的表面（比如刚点的通知）时会被拒绝，而命令照样返回 0。
 3. `niri msg action focus-window --id <niri 窗口 id>`：用标题把 kitty pane 映射到 niri 窗口（`app_id == "kitty"`，标题去掉状态字形后比对），直接让合成器聚焦。合成器 IPC 不受抢焦点限制。
 
+点击动作之后，插件还会对这条通知发一次 `CloseNotification`（id 由 `notify-send -p` 提供）。DMS 的弹窗动作按钮本身只负责收起弹窗；Quickshell 在动作被 invoke 时会顺带关掉非 `resident` 的通知，所以通常 DMS 自己就会把条目移走。这一步是兜底，保证条目不会留在通知中心的等候区。历史记录不受影响——通知到达时已经单独记过一份。
+
 **Claude Code 侧不需要任何配置**：没有 hook，不动 `settings.json`。
 
 ## 依赖
@@ -76,10 +78,11 @@ rm -rf ~/.config/DankMaterialShell/plugins/claudeSessions
 插件把每个事件都写进 `~/.cache/claudeSessions.log`：
 
 ```
-2026-10-22 19:54:43  finished pane=14 name=✳ Claude 常用插件配置
-2026-10-22 19:54:49  action=[default] pane=14
-2026-10-22 19:54:49  pane 14 -> niri 56 rc=0 title=[✳ Claude 常用插件配置]
-2026-10-22 19:54:49  focus pane=14 exit=0
+2026-10-22 20:22:24  finished pane=14 name=Claude 常用插件配置
+2026-10-22 20:22:24  action=[default] id=140 pane=14
+2026-10-22 20:22:24  close id=140 exit=0
+2026-10-22 20:22:24  pane 14 -> niri 56 rc=0 title=[✳ Claude 常用插件配置]
+2026-10-22 20:22:24  focus pane=14 exit=0
 ```
 
 `action=[default]` 说明点击传回来了；`pane X -> niri Y rc=0` 说明找到了对应的合成器窗口。
