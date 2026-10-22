@@ -1,0 +1,23 @@
+{
+    "id": "claudeSessions",
+    "name": "Claude Sessions",
+    "description": "Watches Claude Code panes in kitty and posts a clickable DMS notification when a session finishes its turn — clicking jumps to that terminal.",
+    "version": "1.0.0",
+    "author": "ATOM",
+    "type": "daemon",
+    "component": "./ClaudeSessionsDaemon.qml",
+    "capabilities": [
+        "notifications",
+        "claude-code",
+        "kitty"
+    ],
+    "icon": "notifications",
+    "requires_dms": ">=1.4.0",
+    "dependencies": [
+        "kitty",
+        "notify-send"
+    ],
+    "permissions": [
+        "process"
+    ]
+}
