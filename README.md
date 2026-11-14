@@ -19,6 +19,10 @@ Claude Code 自己会把状态写进终端标题：
 
 插件每 2 秒读一次 `kitten @ ls`，找出前台进程是 `claude` 的 pane，观察 `◑ → ✳` 的跳变。跳变即「这一轮结束」，于是发通知。
 
+> 进程匹配看的是 **basename**，不是字面量 `claude`。新版 Claude Code 的启动器会用绝对路径
+> 重新 exec 自己，`argv[0]` 变成 `/home/user/.npm-global/bin/claude` —— 用严格相等判断会让
+> 插件**一条通知都发不出来**，且日志里没有任何报错（看起来像「插件死掉了」）。
+
 点击通知时跑 `focus-pane.sh`，分三步 —— 单靠任何一步都不够：
 
 1. `qs ipc call notifications close`：关掉 DMS 通知中心。那个弹层是 `keyboard interactivity: exclusive` 的，它开着的时候 niri 的 `focused-window` 是 `null`，任何聚焦请求都会被静默忽略。
@@ -86,6 +90,18 @@ rm -rf ~/.config/DankMaterialShell/plugins/claudeSessions
 ```
 
 `action=[default]` 说明点击传回来了；`pane X -> niri Y rc=0` 说明找到了对应的合成器窗口。
+
+**日志里连 `finished` 都没有、通知中心也一直是空的**：先确认 `kitten @ ls` 里 Claude pane 的
+`foreground_processes[0].cmdline[0]` 长什么样：
+
+```bash
+pid=$(pgrep -x kitty | head -n1)
+kitten @ --to "unix:@mykitty-$pid" ls | \
+  jq -r '.[] .tabs[] .windows[] | [.id, .title, (.foreground_processes[0].cmdline[0] // "")] | @tsv'
+```
+
+若第一列进程是 `/home/…/bin/claude` 这类**绝对路径**，说明插件版本太旧（1.0.0 用严格相等
+`cmd === "claude"`），升级到包含 basename 匹配的版本即可。
 
 ## 已知限制
 

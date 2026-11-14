@@ -95,8 +95,16 @@ PluginComponent {
                     const procs = win.foreground_processes || [];
                     if (!procs.length)
                         continue;
-                    const cmd = (procs[0].cmdline || [""])[0];
-                    if (cmd !== "claude")
+                    // Match on the basename, not the literal "claude".
+                    // Newer Claude Code launchers re-exec the binary by its
+                    // absolute path, so argv[0] arrives as
+                    // "/home/user/.npm-global/bin/claude" and a strict
+                    // equality test silently stops detecting every pane.
+                    const isClaude = procs.some(p => {
+                        const argv0 = ((p.cmdline || [])[0] || "");
+                        return argv0.substring(argv0.lastIndexOf("/") + 1) === "claude";
+                    });
+                    if (!isClaude)
                         continue;
                     const title = win.title || "";
                     now[String(win.id)] = {
